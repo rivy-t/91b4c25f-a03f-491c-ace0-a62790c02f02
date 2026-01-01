@@ -13,10 +13,15 @@ INSTANCE_ID="${INSTANCE_ID:-${VM_HOSTNAME}-001}"
 
 # Paths (relative to this script's directory)
 BUILD_DIR="../#build"
-KEYS_DIR="../${KEYS_DIR:-ssh-public-keys}"
-TEMPLATE_FILE="../${TEMPLATE_FILE:-user-data.template}"
-USER_DATA="${BUILD_DIR}/files/${USER_DATA:-user-data}"
-META_DATA="${BUILD_DIR}/files/${META_DATA:-meta-data}"
+SRC_DIR="../src"
+KEYS_DIR="${SRC_DIR}/${KEYS_DIR:-ssh-public-keys}"
+DATA_DIR="${SRC_DIR}/cloud-init-data"
+
+USER_TEMPLATE_FILE="${DATA_DIR}/${USER_TEMPLATE_FILE:-user-data.template}"
+
+USER_DATA="${BUILD_DIR}/data/${USER_DATA:-user-data}"
+META_DATA="${BUILD_DIR}/data/${META_DATA:-meta-data}"
+
 NETWORK_CONFIG="../${NETWORK_CONFIG:-network-config}"
 
 # Output ISO name
@@ -38,14 +43,14 @@ err() {
 }
 
 check_deps() {
-    command -v cloud-localds >/dev/null 2>&1 || err "cloud-localds (cloud-image-utils) not found. Install with: sudo apt install cloud-image-utils"
+    command -v cloud-localds >/dev/null 2>&1 || err "cloud-localds (cloud-image-utils) not found. Install with: \`sudo apt install cloud-image-utils\`"
 }
 
 generate_user_data() {
     # create build path, if needed
     mkdir -p "$(dirname "${USER_DATA}")"
 
-    [ -f "${TEMPLATE_FILE}" ] || err "Template file '${TEMPLATE_FILE}' not found"
+    [ -f "${USER_TEMPLATE_FILE}" ] || err "Template file '${USER_TEMPLATE_FILE}' not found"
     [ -d "${KEYS_DIR}" ] || err "Keys directory '${KEYS_DIR}' not found"
 
     local any_key=false
@@ -69,7 +74,7 @@ generate_user_data() {
         else
             echo "$line"
         fi
-        done < "${TEMPLATE_FILE}"
+        done < "${USER_TEMPLATE_FILE}"
     } > "${USER_DATA}"
     echo "Generated '${USER_DATA}' with keys from '${KEYS_DIR}/'"
 }

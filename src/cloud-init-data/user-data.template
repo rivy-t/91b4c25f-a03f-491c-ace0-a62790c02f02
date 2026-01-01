@@ -1,16 +1,17 @@
-# cloud-config
+#cloud-config
+
 ## editors ## (emacs/sublime) -*- coding: utf8-nix; tab-width: 2; mode: yaml; indent-tabs-mode: nil; basic-offset: 2; st-word_wrap: 'true' -*- ## (jEdit) :tabSize=2:indentSize=2:mode=yaml: ## (notepad++) vim:tabstop=2:syntax=yaml:expandtab:smarttab:softtabstop=2 ## modeline (see <https://archive.is/djTUD>@@<http://webcitation.org/66W3EhCAP> ) -->
 ## spell-checker:ignore expandtab modeline smarttab softtabstop
 
 ## spell-checker:ignore NOPASSWD fdfind firstboot mydestination pipefail postconf relayhost runcmd rustdesk tailscaled
-hostname: ug-debian-cloud-1
-fqdn: ug-debian-cloud-1.local
+
+#hostname: ug-debian-cloud-1
+#fqdn: ug-debian-cloud-1.local
 
 manage_etc_hosts: true
 
 users:
   - name: toor
-    password: password
     groups: sudo
     shell: /bin/bash
     sudo: ["ALL=(ALL) NOPASSWD:ALL"]
@@ -19,6 +20,7 @@ users:
       #   - ssh-ed25519 AAAA...
       #   - ssh-ed25519 BBBB...
       [ AUTHORIZED_SSH_PUBLIC_KEYS ]
+password: password
 
 package_update: true
 package_upgrade: true
@@ -27,13 +29,13 @@ packages:
   - openssh-server
   - fail2ban
   - postfix
-  - tailscale
+#   - tailscale
   - kde-standard
   - sddm
-  - rustdesk
+#   - rustdesk
   - ripgrep
   - fd-find
-  - exa
+#   - exa
   - lsd
   - fzf
   - zoxide
@@ -119,5 +121,6 @@ runcmd:
   - [ chmod, "+x", "/usr/local/sbin/firstboot-setup.sh" ]
   # Run idempotent setup script
   - [ /usr/local/sbin/firstboot-setup.sh ]
+  - echo "cloud-init setup complete at $(date)" >> /tmp/cloud-init.log.txt
 
 final_message: "Debian VM setup complete (idempotent firstboot script applied)."

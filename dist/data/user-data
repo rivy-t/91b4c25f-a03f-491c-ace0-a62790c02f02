@@ -1,0 +1,127 @@
+#cloud-config
+
+## editors ## (emacs/sublime) -*- coding: utf8-nix; tab-width: 2; mode: yaml; indent-tabs-mode: nil; basic-offset: 2; st-word_wrap: 'true' -*- ## (jEdit) :tabSize=2:indentSize=2:mode=yaml: ## (notepad++) vim:tabstop=2:syntax=yaml:expandtab:smarttab:softtabstop=2 ## modeline (see <https://archive.is/djTUD>@@<http://webcitation.org/66W3EhCAP> ) -->
+## spell-checker:ignore expandtab modeline smarttab softtabstop
+
+## spell-checker:ignore NOPASSWD fdfind firstboot mydestination pipefail postconf relayhost runcmd rustdesk tailscaled
+
+#hostname: ug-debian-cloud-1
+#fqdn: ug-debian-cloud-1.local
+
+manage_etc_hosts: true
+
+users:
+  - name: toor
+    groups: sudo
+    shell: /bin/bash
+    sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+    ssh_authorized_keys:
+      # Your generator will replace this block with multiple keys:
+      #   - ssh-ed25519 AAAA...
+      #   - ssh-ed25519 BBBB...
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII6+laQdIMqYoqTeYMvTfl0sxIrGbH3XYrJJ5H1Mz3uQ rivy.[2017-08-19].ED25519
+      - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC5Uit/cThzTmMAGOUmN5oyKasm6TzKpBd+5tAln+oN9THyggnbA3Leyr5wz+9TGrsBbgP1+QyIbWM/16l/rkGOsJ9X9dC/rbULRac6MZqPvkqJJbBeFadO0Qyo+7nzJqgGX6LDXwpeIrKlngYC50TD8Opu6TcAhNBx/NqX1mSWooKybD+19+j4CUJPWW+eZwzZ75USmOKbU4X02W4kaIo+jAFTKM/pqZRgdPnGhbqO2RlsDUtPqCXAvf/5ZGWsvmD0Ly5v8pMNaQOHSUq6fAhsvH2eCbJcTixOa+DEgE+eUEI9d225p4teBKuD2q8zQRdpPO6Ovs5iv5myjfZiZmhV9cKCUwYIgbclGoIb6HAKYzvfnI3MJljGjFvrr1R+k40KP3U4tslu9+X4gotvLUcq75hJGz1U9aUntvNYIyS2qTdte38BgleChri4V8L7VpJymM7lcQ1A6n66TIM5hQCrey+sBpQ0OSz3QgF8HTRsq4A4bBE8/U/DMxli+7EpM2XMk7sWYLi5tNmvvfyZwflXTzfpMBAXrY1Ky3P3epFHC/mgaV52jNqNrqJpsY/i0lYxFU4uR9DG8D9PQM8awqYJ7Wew2IMdgkhXLJraaeKBlUN1Cj5Ae3qJ95YiU4Zd2cBh0Wmm/wmPfnzQMmFU8YZPBfpG4+0Bkhn1BawYllD33w== root-VM.[2018-04-02].RSA4096
+password: password
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - openssh-server
+  - fail2ban
+  - postfix
+#   - tailscale
+  - kde-standard
+  - sddm
+#   - rustdesk
+  - ripgrep
+  - fd-find
+#   - exa
+  - lsd
+  - fzf
+  - zoxide
+  - curl
+  - git
+  - build-essential
+  - nodejs
+  - npm
+
+# Use write_files + a small script to keep things idempotent
+write_files:
+  - path: /usr/local/sbin/firstboot-setup.sh
+    permissions: '0755'
+    owner: root:root
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      ADMIN_USER="toor"
+      ADMIN_HOME="/home/${ADMIN_USER}"
+      BASHRC="${ADMIN_HOME}/.bashrc"
+
+      # Ensure admin home exists
+      if ! id "${ADMIN_USER}" &>/dev/null; then
+        echo "User ${ADMIN_USER} does not exist; exiting."
+        exit 0
+      fi
+
+      # ---- fd convenience symlink ----
+      if command -v fdfind &>/dev/null && ! command -v fd &>/dev/null; then
+        ln -sf "$(command -v fdfind)" /usr/local/bin/fd
+      fi
+
+      # ---- Ensure zoxide init lines present ----
+      if command -v zoxide &>/dev/null; then
+        ZOX_LINE='eval "$(zoxide init bash)"'
+        if ! grep -Fxq "${ZOX_LINE}" "${BASHRC}" 2>/dev/null; then
+          echo "${ZOX_LINE}" >> "${BASHRC}"
+        fi
+      fi
+
+      # ---- Ensure fzf key-bindings/completion sourced (if present) ----
+      if [ -f /usr/share/doc/fzf/examples/key-bindings.bash ]; then
+        FZF_KB='source /usr/share/doc/fzf/examples/key-bindings.bash'
+        if ! grep -Fxq "${FZF_KB}" "${BASHRC}" 2>/dev/null; then
+          echo "${FZF_KB}" >> "${BASHRC}"
+        fi
+      fi
+
+      if [ -f /usr/share/doc/fzf/examples/completion.bash ]; then
+        FZF_COMP='source /usr/share/doc/fzf/examples/completion.bash'
+        if ! grep -Fxq "${FZF_COMP}" "${BASHRC}" 2>/dev/null; then
+          echo "${FZF_COMP}" >> "${BASHRC}"
+        fi
+      fi
+
+      chown "${ADMIN_USER}:${ADMIN_USER}" "${BASHRC}"
+
+      # ---- Postfix basic local-only config (idempotent via postconf) ----
+      if command -v postconf &>/dev/null; then
+        postconf -e "inet_interfaces = loopback-only"
+        postconf -e "mydestination = localhost"
+        # Set/clear relayhost explicitly instead of appending to main.cf
+        postconf -e "relayhost ="
+        systemctl restart postfix || true
+      fi
+
+      # ---- Services enabled (safe to re-run) ----
+      systemctl enable sddm || true
+      #systemctl enable tailscaled || true
+      #systemctl restart tailscaled || true
+      systemctl enable fail2ban || true
+      systemctl restart fail2ban || true
+
+      # ---- Codex AI CLI install/update ----
+      if command -v npm &>/dev/null; then
+        # Re-running is fine; npm will just update/confirm
+        npm install -g @openai/codex || true
+      fi
+
+runcmd:
+  # Ensure script is executable (already set in write_files, but harmless)
+  - [ chmod, "+x", "/usr/local/sbin/firstboot-setup.sh" ]
+  # Run idempotent setup script
+  - [ /usr/local/sbin/firstboot-setup.sh ]
+  - echo "cloud-init setup complete at $(date)" >> /tmp/cloud-init.log.txt
+
+final_message: "Debian VM setup complete (idempotent firstboot script applied)."
